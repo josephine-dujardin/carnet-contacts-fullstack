@@ -1,48 +1,61 @@
-from flask import Flask, jsonify, request
+from flask import Flask, request, jsonify
 from flask_cors import CORS
+from flask_sqlalchemy import SQLAlchemy
 
 app = Flask(__name__)
 CORS(app)
 
-contacts = [
-    {"id": 1, "name": "Alice Martin", "email": "alice@example.com", "phone": "0601020304"},
-    {"id": 2, "name": "Bob Dupont", "email": "bob@example.com", "phone": "0605060708"},
-    {"id": 3, "name": "Chloé Dubois", "email": "chloe@example.com", "phone": "0609091011"}
-]
+app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root:monpassword@localhost/carnet_contacts'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
+db = SQLAlchemy(app)
+
+# === Contact ===
+class Contact(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    email = db.Column(db.String(100), nullable=False)
+    phone = db.Column(db.String(20), nullable=False)
+
+    def to_dict(self):
+        return {"id": self.id, "name": self.name, "email": self.email, "phone": self.phone}
+
+# === Routes ===
 @app.route('/contacts', methods=['GET'])
 def get_contacts():
-    return jsonify(contacts)
+    contacts = Contact.query.all()
+    return jsonify([c.to_dict() for c in contacts])
 
 @app.route('/contacts', methods=['POST'])
 def add_contact():
     data = request.json
-    new_id = max(contact["id"] for contact in contacts) + 1 if contacts else 1
-    new_contact = {
-        "id": new_id,
-        "name": data["name"],
-        "email": data["email"],
-        "phone": data["phone"]
-    }
-    contacts.append(new_contact)
-    return jsonify(new_contact), 201
+    contact = Contact(name=data['name'], email=data['email'], phone=data['phone'])
+    db.session.add(contact)
+    db.session.commit()
+    return jsonify(contact.to_dict()), 201
 
 @app.route('/contacts/<int:id>', methods=['PUT'])
 def update_contact(id):
+    contact = Contact.query.get(id)
+    if not contact:
+        return jsonify({"message": "Contact non trouvé"}), 404
     data = request.json
-    for contact in contacts:
-        if contact['id'] == id:
-            contact['name'] = data['name']
-            contact['email'] = data['email']
-            contact['phone'] = data['phone']
-            return jsonify(contact)
-    return jsonify({"message": "Contact non trouvé"}), 404
+    contact.name = data['name']
+    contact.email = data['email']
+    contact.phone = data['phone']
+    db.session.commit()
+    return jsonify(contact.to_dict())
 
 @app.route('/contacts/<int:id>', methods=['DELETE'])
 def delete_contact(id):
-    global contacts
-    contacts = [contact for contact in contacts if contact['id'] != id]
-    return '', 204  # No content, suppression réussie
+    contact = Contact.query.get(id)
+    if not contact:
+        return jsonify({"message": "Contact non trouvé"}), 404
+    db.session.delete(contact)
+    db.session.commit()
+    return '', 204
 
 if __name__ == '__main__':
+    with app.app_context():
+        db.create_all()
     app.run(debug=True)
