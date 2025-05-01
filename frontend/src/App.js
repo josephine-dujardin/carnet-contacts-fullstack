@@ -1,23 +1,26 @@
-import logo from './logo.svg';
-import './App.css';
+import React, { useEffect, useState } from "react";
+import "./App.css";
 
 function App() {
+  const [contacts, setContacts] = useState([]);
+
+  useEffect(() => {
+    fetch("http://localhost:5000/contacts")
+      .then((res) => res.json())
+      .then((data) => setContacts(data))
+      .catch((err) => console.error("Erreur de chargement:", err));
+  }, []);
+
   return (
     <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
+      <h1>Carnet de Contacts</h1>
+      <ul>
+        {contacts.map((contact) => (
+          <li key={contact.id}>
+            <strong>{contact.name}</strong> - {contact.email} - {contact.phone}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
